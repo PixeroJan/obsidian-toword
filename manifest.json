@@ -1,0 +1,11 @@
+{
+  "id": "to-word",
+  "name": "ToWord",
+  "version": "1.4.0",
+  "minAppVersion": "0.15.0",
+  "description": "Export markdown files to Word (docx) with text styling, syntax highlighting, and full mobile support for iOS/Android.",
+  "author": "Jan Sandström",
+  "authorUrl": "https://github.com/PixeroJan",
+  "isDesktopOnly": false,
+  "icon": "file-output"
+}

@@ -1,0 +1,31 @@
+/* Styles for the Export to Word plugin */
+
+/* This file can be used for any custom UI styling if needed in the future */
+
+.export-to-word-notice {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.export-to-word-error {
+    background-color: var(--background-modifier-error);
+    color: var(--text-error);
+}
+
+/* Settings page styling */
+.export-to-word-settings {
+    padding: 1em;
+}
+
+.export-to-word-settings h2 {
+    margin-bottom: 1em;
+}
+
+.export-to-word-settings .setting-item {
+    border-top: 1px solid var(--background-modifier-border);
+    padding: 1em 0;
+}
+
+.export-to-word-settings .setting-item:first-of-type {
+    border-top: none;
+}
