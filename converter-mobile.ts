@@ -215,8 +215,14 @@ export class MarkdownToDocxConverter {
 		obsidianFonts?: ObsidianFontSettings | null,
 		resourceLoader?: (link: string) => Promise<ArrayBuffer | null>,
 	): Promise<Blob> {
+		// Strip frontmatter if includeMetadata is disabled
+		let processedMarkdown = markdown;
+		if (!this.settings.includeMetadata) {
+			processedMarkdown = this.stripFrontmatter(processedMarkdown);
+		}
+
 		// Pre-process markdown to fix common issues (if enabled)
-		const cleanedMarkdown = this.settings.enablePreprocessing ? this.preprocessMarkdown(markdown) : markdown;
+		const cleanedMarkdown = this.settings.enablePreprocessing ? this.preprocessMarkdown(processedMarkdown) : processedMarkdown;
 		
 		// Check if we should use chunked processing for large documents
 		const threshold = this.settings.chunkingThreshold || 100000; // Fallback to 100KB
@@ -227,6 +233,22 @@ export class MarkdownToDocxConverter {
 
 		// Normal processing for smaller documents
 		return this.processNormalConversion(cleanedMarkdown, title, obsidianFonts, resourceLoader);
+	}
+
+	// Strip YAML frontmatter from markdown content
+	private stripFrontmatter(markdown: string): string {
+		if (!markdown.startsWith('---')) {
+			return markdown;
+		}
+		const lines = markdown.split('\n');
+		for (let i = 1; i < lines.length; i++) {
+			if (lines[i].trim() === '---' || lines[i].trim() === '...') {
+				// Return everything after the closing fence, trimming leading blank lines
+				return lines.slice(i + 1).join('\n').replace(/^\n+/, '');
+			}
+		}
+		// No closing fence found — return original content unchanged
+		return markdown;
 	}
 
 	// Pre-process markdown to fix common conversion issues
@@ -1558,7 +1580,13 @@ ${imageRels}</Relationships>`;
 			return `|||SUPER|||${footnoteIndex}|||/SUPER|||`;
 		});
 		
-		// 9. Links
+		// 9. Obsidian wikilinks - convert to plain text (Word doesn't support vault links)
+		// [[Link|Display Text]] -> Display Text
+		// [[Link]] -> Link
+		result = result.replace(/\[\[([^\]]+)\|([^\]]+)\]\]/g, '$2');
+		result = result.replace(/\[\[([^\]]+)\]\]/g, '$1');
+
+		// 10. Links
 		result = result.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g, '|||LINK|||$1|||DATA:$2|||/LINK|||');
 		
 		// Convert to Word XML
