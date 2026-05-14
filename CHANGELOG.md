@@ -2,7 +2,7 @@
 
 All notable changes to the ToWord plugin will be documented in this file.
 
-## [1.4.2] - 2026-05-14
+## [1.4.3] - 2026-05-14
 
 ### 🧹 Code Quality & Compliance
 - Replaced `fetch` with Obsidian's `requestUrl` for cross-platform network requests

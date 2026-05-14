@@ -171,7 +171,7 @@ export class MarkdownToDocxConverter {
 				}
 				
 				// Small delay to prevent UI blocking
-				await new Promise(resolve => activeWindow.setTimeout(resolve, 10));
+				await new Promise(resolve => window.setTimeout(resolve, 10));
 				
 			} catch (error) {
 				console.error(`Error processing chunk ${i + 1}:`, error);

@@ -1,7 +1,7 @@
 {
   "id": "to-word",
   "name": "ToWord",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "minAppVersion": "1.4.0",
   "description": "Export markdown files to Word (docx) with text styling, syntax highlighting, and full mobile support for iOS/Android.",
   "author": "Jan Sandström",

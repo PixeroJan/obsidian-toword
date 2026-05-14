@@ -132,10 +132,9 @@ export default class ToWordPlugin extends Plugin {
 	}
 
 	getObsidianFontSettings() {
-		const aw = activeWindow as Window & typeof globalThis;
 		// Get the computed styles from Obsidian's editor or body element
 		let editorEl: Element | null = activeDocument.querySelector('.markdown-preview-view, .markdown-source-view');
-		if (!editorEl || !(editorEl instanceof aw.HTMLElement)) {
+		if (!editorEl || !editorEl.instanceOf(HTMLElement)) {
 			editorEl = activeDocument.body;
 		}
 
@@ -226,9 +225,8 @@ export default class ToWordPlugin extends Plugin {
 		const colors: string[] = [];
 		
 		// Get the text font to use for all headers
-		const aw = activeWindow as Window & typeof globalThis;
 		const editorEl = activeDocument.querySelector('.markdown-preview-view, .markdown-source-view');
-		const textFont = editorEl instanceof aw.HTMLElement ?
+		const textFont = editorEl?.instanceOf(HTMLElement) ?
 			window.getComputedStyle(editorEl).getPropertyValue('--font-text').replace(/['"]/g, '').split(',')[0].trim() ||
 			this.settings.defaultFontFamily :
 			this.settings.defaultFontFamily;
@@ -244,7 +242,7 @@ export default class ToWordPlugin extends Plugin {
 			let found = false;
 			for (const selector of selectors) {
 				const headingEl = activeDocument.querySelector(selector);
-				if (headingEl && headingEl instanceof aw.HTMLElement) {
+				if (headingEl?.instanceOf(HTMLElement)) {
 					const computedStyle = window.getComputedStyle(headingEl);
 					const fontSizeStr = computedStyle.getPropertyValue('font-size') || '16px';
 					const fontSizePx = parseFloat(fontSizeStr);
@@ -313,7 +311,8 @@ export default class ToWordPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const data = (await this.loadData()) as Partial<ToWordSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 	}
 
 	async saveSettings() {
@@ -335,8 +334,6 @@ class ToWordSettingTab extends PluginSettingTab {
 		const {containerEl} = this;
 
 		containerEl.empty();
-
-		new Setting(containerEl).setName('ToWord Settings').setHeading();
 
 		new Setting(containerEl)
 			.setName('Default font family')
