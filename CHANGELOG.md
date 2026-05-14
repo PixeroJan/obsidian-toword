@@ -6,10 +6,12 @@ All notable changes to the ToWord plugin will be documented in this file.
 
 ### 🧹 Code Quality & Compliance
 - Replaced `fetch` with Obsidian's `requestUrl` for cross-platform network requests
-- Switched to `activeWindow` / `activeDocument` and `instanceOf` checks for popout window compatibility
-- Replaced `<h2>` heading element with `Setting().setHeading()` in the settings tab
-- Renamed command id to avoid the plugin id prefix
+- Switched to `activeWindow` / `activeDocument` and Obsidian's `.instanceOf(HTMLElement)` helper for popout window compatibility
+- Use `window.setTimeout` instead of bare `setTimeout`
+- Removed the `<h2>` settings header and the redundant "ToWord Settings" heading from the settings tab
+- Renamed the export command id to avoid the plugin id prefix
 - Bumped `minAppVersion` to 1.4.0 to match `Vault.createFolder` requirement
+- Typed `loadData()` result to remove unsafe `any` assignment
 - Removed unused imports/variables and tightened types in regex callbacks
 - Cleaned up unnecessary regex escapes
 - Replaced deprecated `builtin-modules` package with Node's built-in `module.builtinModules`
