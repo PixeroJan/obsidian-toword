@@ -2,6 +2,18 @@
 
 All notable changes to the ToWord plugin will be documented in this file.
 
+## [1.4.2] - 2026-05-14
+
+### 🧹 Code Quality & Compliance
+- Replaced `fetch` with Obsidian's `requestUrl` for cross-platform network requests
+- Switched to `activeWindow` / `activeDocument` and `instanceOf` checks for popout window compatibility
+- Replaced `<h2>` heading element with `Setting().setHeading()` in the settings tab
+- Renamed command id to avoid the plugin id prefix
+- Bumped `minAppVersion` to 1.4.0 to match `Vault.createFolder` requirement
+- Removed unused imports/variables and tightened types in regex callbacks
+- Cleaned up unnecessary regex escapes
+- Replaced deprecated `builtin-modules` package with Node's built-in `module.builtinModules`
+
 ## [1.4.0] - 2024-10-04 🎉 MAJOR MOBILE UPDATE
 
 ### 🚀 **Breaking Changes & Major Improvements**

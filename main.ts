@@ -1,4 +1,4 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TFile, Platform } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { MarkdownToDocxConverter } from './converter-mobile';
 
 interface ToWordSettings {
@@ -50,13 +50,13 @@ export default class ToWordPlugin extends Plugin {
 
 		// Add command to export current file
 		this.addCommand({
-			id: 'export-to-word',
+			id: 'export-current-file',
 			name: 'Export current file to Word',
 			checkCallback: (checking: boolean) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (activeFile) {
 					if (!checking) {
-						this.exportToWord(activeFile);
+						void this.exportToWord(activeFile);
 					}
 					return true;
 				}
@@ -126,15 +126,17 @@ export default class ToWordPlugin extends Plugin {
 			new Notice(`Saved to: ${outputPath}`, 5000);
 		} catch (error) {
 			console.error('Error exporting to Word:', error);
-			new Notice(`Error exporting to Word: ${error.message}`);
+			const message = error instanceof Error ? error.message : String(error);
+			new Notice(`Error exporting to Word: ${message}`);
 		}
 	}
 
 	getObsidianFontSettings() {
+		const aw = activeWindow as Window & typeof globalThis;
 		// Get the computed styles from Obsidian's editor or body element
-		let editorEl = document.querySelector('.markdown-preview-view, .markdown-source-view');
-		if (!editorEl || !(editorEl instanceof HTMLElement)) {
-			editorEl = document.body;
+		let editorEl: Element | null = activeDocument.querySelector('.markdown-preview-view, .markdown-source-view');
+		if (!editorEl || !(editorEl instanceof aw.HTMLElement)) {
+			editorEl = activeDocument.body;
 		}
 
 		const computedStyle = window.getComputedStyle(editorEl);
@@ -224,10 +226,11 @@ export default class ToWordPlugin extends Plugin {
 		const colors: string[] = [];
 		
 		// Get the text font to use for all headers
-		const editorEl = document.querySelector('.markdown-preview-view, .markdown-source-view');
-		const textFont = editorEl instanceof HTMLElement ? 
-			window.getComputedStyle(editorEl).getPropertyValue('--font-text').replace(/['"]/g, '').split(',')[0].trim() || 
-			this.settings.defaultFontFamily : 
+		const aw = activeWindow as Window & typeof globalThis;
+		const editorEl = activeDocument.querySelector('.markdown-preview-view, .markdown-source-view');
+		const textFont = editorEl instanceof aw.HTMLElement ?
+			window.getComputedStyle(editorEl).getPropertyValue('--font-text').replace(/['"]/g, '').split(',')[0].trim() ||
+			this.settings.defaultFontFamily :
 			this.settings.defaultFontFamily;
 		
 		// Try to find actual heading elements in the preview or editor
@@ -240,8 +243,8 @@ export default class ToWordPlugin extends Plugin {
 			
 			let found = false;
 			for (const selector of selectors) {
-				const headingEl = document.querySelector(selector);
-				if (headingEl && headingEl instanceof HTMLElement) {
+				const headingEl = activeDocument.querySelector(selector);
+				if (headingEl && headingEl instanceof aw.HTMLElement) {
 					const computedStyle = window.getComputedStyle(headingEl);
 					const fontSizeStr = computedStyle.getPropertyValue('font-size') || '16px';
 					const fontSizePx = parseFloat(fontSizeStr);
@@ -333,7 +336,7 @@ class ToWordSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl('h2', {text: 'ToWord Settings'});
+		new Setting(containerEl).setName('ToWord Settings').setHeading();
 
 		new Setting(containerEl)
 			.setName('Default font family')

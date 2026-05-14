@@ -1,6 +1,7 @@
 import { zip, strToU8 } from 'fflate';
+import { requestUrl } from 'obsidian';
 import MarkdownIt from 'markdown-it';
-import type Token from 'markdown-it/lib/token';
+import type { PluginSimple } from 'markdown-it';
 import { full as markdownItEmoji } from 'markdown-it-emoji';
 import markdownItMark from 'markdown-it-mark';
 import hljs from 'highlight.js';
@@ -76,8 +77,8 @@ export class MarkdownToDocxConverter {
 	constructor(settings: ToWordSettings) {
 		this.settings = settings;
 		this.md = new MarkdownIt({ html: true, linkify: false, typographer: false, breaks: false });
-		this.md.use(markdownItEmoji);
-		this.md.use(markdownItMark);
+		this.md.use(markdownItEmoji as PluginSimple);
+		this.md.use(markdownItMark as PluginSimple);
 	}
 
 	// Chunked processing for large documents
@@ -164,12 +165,13 @@ export class MarkdownToDocxConverter {
 				allElements = allElements.concat(chunkElements);
 				
 				// Force garbage collection hint after each chunk
-				if (globalThis.gc) {
-					globalThis.gc();
+				const gcWindow = activeWindow as Window & { gc?: () => void };
+				if (gcWindow.gc) {
+					gcWindow.gc();
 				}
 				
 				// Small delay to prevent UI blocking
-				await new Promise(resolve => setTimeout(resolve, 10));
+				await new Promise(resolve => activeWindow.setTimeout(resolve, 10));
 				
 			} catch (error) {
 				console.error(`Error processing chunk ${i + 1}:`, error);
@@ -258,9 +260,9 @@ export class MarkdownToDocxConverter {
 		// 1. Convert Obsidian wikilinks to standard markdown links
 		// [[Link]] -> [Link](Link.md)
 		// But avoid matching parts of URLs or image syntax
-		cleaned = cleaned.replace(/\[\[([^\]]+)\]\]/g, (match, content, offset, string) => {
+		cleaned = cleaned.replace(/\[\[([^\]]+)\]\]/g, (match: string, content: string, offset: number, source: string) => {
 			// Skip if this is part of an image syntax (preceded by !)
-			if (offset > 0 && string[offset - 1] === '!') {
+			if (offset > 0 && source[offset - 1] === '!') {
 				return match; // Keep original
 			}
 			
@@ -290,7 +292,7 @@ export class MarkdownToDocxConverter {
 
 		// 3. Convert Obsidian callouts to standard blockquotes
 		// > [!NOTE] Title -> > **NOTE: Title**
-		cleaned = cleaned.replace(/^>\s*\[!(\w+)\](\s*(.+))?$/gm, (match, type, titlePart, title) => {
+		cleaned = cleaned.replace(/^>\s*\[!(\w+)\](\s*(.+))?$/gm, (_match: string, type: string, _titlePart: string | undefined, title: string | undefined) => {
 			const calloutTitle = title ? ` ${title.trim()}` : '';
 			return `> **${type.toUpperCase()}:${calloutTitle}**`;
 		});
@@ -298,25 +300,25 @@ export class MarkdownToDocxConverter {
 		// 4. Process reference-style links
 		// Collect all reference definitions first
 		const referenceDefinitions = new Map<string, string>();
-		cleaned = cleaned.replace(/^\s*\[([^\]]+)\]:\s*(.+)$/gm, (match, ref, url) => {
+		cleaned = cleaned.replace(/^\s*\[([^\]]+)\]:\s*(.+)$/gm, (_match: string, ref: string, url: string) => {
 			referenceDefinitions.set(ref.toLowerCase(), url.trim());
 			return ''; // Remove the definition line
 		});
 		
 		// Convert reference links to inline links
-		cleaned = cleaned.replace(/\[([^\]]+)\]\[([^\]]+)\]/g, (match, text, ref) => {
+		cleaned = cleaned.replace(/\[([^\]]+)\]\[([^\]]+)\]/g, (match: string, text: string, ref: string) => {
 			const url = referenceDefinitions.get(ref.toLowerCase());
 			return url ? `[${text}](${url})` : match;
 		});
 		
 		// 6. Convert math notation to plain text (temporary solution)
 		// Block math $$...$$
-		cleaned = cleaned.replace(/\$\$([^$]+?)\$\$/g, (match, math) => {
+		cleaned = cleaned.replace(/\$\$([^$]+?)\$\$/g, (_match: string, math: string) => {
 			return `\n\n**[Math Formula]**: ${math.trim()}\n\n`;
 		});
 		
 		// Inline math $...$
-		cleaned = cleaned.replace(/\$([^$\n]+?)\$/g, (match, math) => {
+		cleaned = cleaned.replace(/\$([^$\n]+?)\$/g, (_match: string, math: string) => {
 			return `**[Math]**: ${math.trim()}`;
 		});
 		
@@ -332,7 +334,7 @@ export class MarkdownToDocxConverter {
 		
 		// 9. Clean up escaped characters that might interfere with parsing
 		// These will be properly handled by markdown-it, but we ensure they're not double-escaped
-		cleaned = cleaned.replace(/\\([*_`~=\[\]\\])/g, '\\$1'); // Preserve escaping
+		cleaned = cleaned.replace(/\\([*_`~=[\]\\])/g, '\\$1'); // Preserve escaping
 
 		// 5. Fix YAML frontmatter issues - ensure proper fences
 		if (cleaned.startsWith('---')) {
@@ -677,7 +679,6 @@ ${imageRels}</Relationships>`;
 
 	private generateHeadingStyles(): string {
 		const fontFamily = this.getFontFamily();
-		const baseFontSize = this.getFontSize();
 		let styles = '';
 
 		for (let i = 1; i <= 6; i++) {
@@ -754,10 +755,8 @@ ${imageRels}</Relationships>`;
 		const pageSize = this.getPageSize();
 
 		let content = '';
-		let convertedCount = 0;
 		for (const element of elements) {
 			content += this.elementToXml(element);
-			convertedCount++;
 		}
 
 		// Skip footnote XML generation - let the document handle its own footnotes
@@ -877,16 +876,13 @@ ${imageRels}</Relationships>`;
 			try {
 				const result = hljs.highlight(content, { language: language, ignoreIllegals: true });
 				highlightedHtml = result.value;
-			} catch (e) {
+			} catch {
 				// If highlighting fails, fall back to plain text
 				highlightedHtml = this.escapeXml(content);
 			}
 		} else {
 			highlightedHtml = this.escapeXml(content);
 		}
-		
-		// Convert highlighted HTML to Word XML with colors
-		const highlightedXml = this.convertHighlightedToWord(highlightedHtml);
 		
 		// Split the highlighted XML into lines and wrap each in a paragraph
 		const lines = content.split('\n');
@@ -1449,7 +1445,7 @@ ${imageRels}</Relationships>`;
 		for (const tagType of conversionOrder) {
 			const regex = new RegExp(`<${tagType}(?: data-url="([^"]+)")?>([^<]*?)</${tagType}>`, 'g');
 			
-			result = result.replace(regex, (match, url, content) => {
+			result = result.replace(regex, (match: string, _url: string | undefined, content: string) => {
 				// Process nested content recursively
 				const processedContent = this.convertTemporaryTagsToWordXml(content);
 				
@@ -1532,14 +1528,14 @@ ${imageRels}</Relationships>`;
 		
 		// 3. Handle nested patterns with detailed processing
 		// Bold with italic inside: **text *italic* text**
-		result = result.replace(/\*\*([^*]*?\*[^*]+?\*[^*]*?)\*\*/g, (match, content) => {
+		result = result.replace(/\*\*([^*]*?\*[^*]+?\*[^*]*?)\*\*/g, (_match: string, content: string) => {
 			// Process italic inside bold
 			const processed = content.replace(/\*([^*]+?)\*/g, '<ITALIC>$1</ITALIC>');
 			return `|||BOLD|||${processed}|||/BOLD|||`;
 		});
 		
 		// Italic with bold inside: *text **bold** text*
-		result = result.replace(/\*([^*]*?\*\*[^*]+?\*\*[^*]*?)\*/g, (match, content) => {
+		result = result.replace(/\*([^*]*?\*\*[^*]+?\*\*[^*]*?)\*/g, (_match: string, content: string) => {
 			// Process bold inside italic
 			const processed = content.replace(/\*\*([^*]+?)\*\*/g, '<BOLD>$1</BOLD>');
 			return `|||ITALIC|||${processed}|||/ITALIC|||`;
@@ -1556,7 +1552,7 @@ ${imageRels}</Relationships>`;
 		// 6. Other formatting
 		result = result.replace(/~~([^~\n]+?)~~/g, '|||STRIKE|||$1|||/STRIKE|||');
 		result = result.replace(/==([^=\n]+?)==/g, '|||HIGHLIGHT|||$1|||/HIGHLIGHT|||');
-		result = result.replace(/\^([^\^\s\n]+?)\^/g, '|||SUPER|||$1|||/SUPER|||');
+		result = result.replace(/\^([^^\s\n]+?)\^/g, '|||SUPER|||$1|||/SUPER|||');
 		result = result.replace(/~([^~\s\n]+?)~/g, '|||SUB|||$1|||/SUB|||');
 		
 		// 7. HTML formatting tags
@@ -1571,7 +1567,7 @@ ${imageRels}</Relationships>`;
 		result = result.replace(/<code>([^<]+?)<\/code>/g, '|||CODE|||$1|||/CODE|||');
 		
 		// 8. Footnote references
-		result = result.replace(/\[\^([^\]]+)\]/g, (match, footnoteLabel) => {
+		result = result.replace(/\[\^([^\]]+)\]/g, (_match: string, footnoteLabel: string) => {
 			// Add to used footnotes if not already present
 			if (!this.usedFootnotes.includes(footnoteLabel)) {
 				this.usedFootnotes.push(footnoteLabel);
@@ -1620,7 +1616,7 @@ ${imageRels}</Relationships>`;
 			'<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
 		
 		// Process nested ITALIC and BOLD with proper support
-		result = result.replace(/\|\|\|ITALIC\|\|\|(.*?)\|\|\|\/ITALIC\|\|\|/g, (match, content) => {
+		result = result.replace(/\|\|\|ITALIC\|\|\|(.*?)\|\|\|\/ITALIC\|\|\|/g, (_match: string, content: string) => {
 			// Check if content has nested tags
 			if (content.includes('<BOLD>')) {
 				// Convert nested bold tags to proper Word XML with both italic and bold
@@ -1633,7 +1629,7 @@ ${imageRels}</Relationships>`;
 			}
 		});
 		
-		result = result.replace(/\|\|\|BOLD\|\|\|(.*?)\|\|\|\/BOLD\|\|\|/g, (match, content) => {
+		result = result.replace(/\|\|\|BOLD\|\|\|(.*?)\|\|\|\/BOLD\|\|\|/g, (_match: string, content: string) => {
 			// Check if content has nested tags
 			if (content.includes('<ITALIC>')) {
 				// Convert nested italic tags to proper Word XML with both bold and italic
@@ -1857,7 +1853,7 @@ ${imageRels}</Relationships>`;
 
 			// Handle standard markdown images ![alt](url) or ![alt](url "title")
 			// Also handle Obsidian Resizer plugin syntax: ![alt](url|size) or ![alt](url|widthxheight)
-			const standardImageMatch = trimmedLine.match(/^!\[([^\]]*)\]\(([^\s\|]+)(?:\s*\|(\d+)(?:x(\d+))?)?\s*(?:"[^"]*")?\)$/);
+			const standardImageMatch = trimmedLine.match(/^!\[([^\]]*)\]\(([^\s|]+)(?:\s*\|(\d+)(?:x(\d+))?)?\s*(?:"[^"]*")?\)$/);
 			if (standardImageMatch) {
 				const alt = standardImageMatch[1];
 				const url = standardImageMatch[2];
@@ -1869,9 +1865,9 @@ ${imageRels}</Relationships>`;
 				if (url.startsWith('http://') || url.startsWith('https://')) {
 					// External image - try to fetch it
 					try {
-						const response = await fetch(url);
-						if (response.ok) {
-							imageData = await response.arrayBuffer();
+						const response = await requestUrl({ url });
+						if (response.status >= 200 && response.status < 300) {
+							imageData = response.arrayBuffer;
 						} else {
 							console.warn(`Failed to fetch external image: ${response.status}`);
 						}
@@ -2033,8 +2029,9 @@ ${imageRels}</Relationships>`;
 			
 			if (unorderedListMatch || orderedListMatch) {
 				const isOrdered = !!orderedListMatch;
-				const text = isOrdered ? orderedListMatch![3] : unorderedListMatch![3];
-				const indent = isOrdered ? orderedListMatch![1].length : unorderedListMatch![1].length;
+				const activeMatch = (orderedListMatch ?? unorderedListMatch) as RegExpMatchArray;
+				const text = activeMatch[3];
+				const indent = activeMatch[1].length;
 				const level = Math.min(Math.floor(indent / 2), 1); // Limit to 2 levels (0 and 1)
 				
 				// Find consecutive list items
@@ -2125,9 +2122,6 @@ ${imageRels}</Relationships>`;
 			if (trimmedLine !== '' && !trimmedLine.startsWith('#') && lines[i + 1] && /^:\s+/.test(lines[i + 1])) {
 				const definitionMatch = lines[i + 1].match(/^:\s+(.+)$/);
 				if (definitionMatch) {
-					const termRuns = this.parseInlineFormatting(trimmedLine);
-					const defRuns = this.parseInlineFormatting(definitionMatch[1]);
-					
 					elements.push({
 						type: 'paragraph',
 						content: `${trimmedLine}: ${definitionMatch[1]}`
@@ -2355,7 +2349,7 @@ ${imageRels}</Relationships>`;
 					// Default SVG size if no dimensions found
 					return { width: 300, height: 200 }; // More reasonable default for SVG
 				}
-			} catch (e) {
+			} catch {
 				// Not a text-based SVG, continue to fallback
 			}
 		} catch (error) {
