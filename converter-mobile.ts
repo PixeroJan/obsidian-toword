@@ -1,4 +1,4 @@
-import { zip, strToU8 } from 'fflate';
+import { zipSync } from 'fflate';
 import { requestUrl } from 'obsidian';
 import MarkdownIt from 'markdown-it';
 import type { PluginSimple } from 'markdown-it';
@@ -538,20 +538,21 @@ export class MarkdownToDocxConverter {
 		return docxBlob;
 	}
 
-	private generateDocx(elements: DocumentElement[], title: string): Promise<Blob> {
+	private generateDocx(elements: DocumentElement[], title: string): Blob {
 		// Generate document XML first (this processes images and populates imageRelationships)
 		const documentXml = this.getDocumentXml(elements);
 
 		// Create files object for fflate
 		const files: { [path: string]: Uint8Array } = {};
+		const encoder = new TextEncoder();
 
 		// Add required DOCX structure (relationships must come after document generation)
-		files['[Content_Types].xml'] = strToU8(this.getContentTypesXml());
-		files['_rels/.rels'] = strToU8(this.getRelsXml());
-		files['word/_rels/document.xml.rels'] = strToU8(this.getDocumentRelsXml());
-		files['word/styles.xml'] = strToU8(this.getStylesXml());
-		files['word/numbering.xml'] = strToU8(this.getNumberingXml());
-		files['word/document.xml'] = strToU8(documentXml);
+		files['[Content_Types].xml'] = encoder.encode(this.getContentTypesXml());
+		files['_rels/.rels'] = encoder.encode(this.getRelsXml());
+		files['word/_rels/document.xml.rels'] = encoder.encode(this.getDocumentRelsXml());
+		files['word/styles.xml'] = encoder.encode(this.getStylesXml());
+		files['word/numbering.xml'] = encoder.encode(this.getNumberingXml());
+		files['word/document.xml'] = encoder.encode(documentXml);
 
 		// Add image files to the ZIP
 		this.imageRelationships.forEach(rel => {
@@ -560,18 +561,12 @@ export class MarkdownToDocxConverter {
 		});
 
 		// Create ZIP using fflate
-		return new Promise((resolve, reject) => {
-			zip(files, { level: 6 }, (err, data) => {
-				if (err) {
-					console.error('ZIP creation failed:', err);
-					reject(err);
-				} else {
-					const blob = new Blob([new Uint8Array(data)], {
-						type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-					});
-					resolve(blob);
-				}
-			});
+		const data = zipSync(files, { level: 6 });
+		const buffer = new ArrayBuffer(data.byteLength);
+		new Uint8Array(buffer).set(data);
+
+		return new Blob([buffer], {
+			type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 		});
 	}
 

@@ -1,6 +1,6 @@
 {
   "name": "to-word",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Export markdown files to Word (docx) format with full mobile support and syntax highlighting",
   "main": "main.js",
   "scripts": {

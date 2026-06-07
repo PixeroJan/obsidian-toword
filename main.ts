@@ -29,6 +29,8 @@ const DEFAULT_SETTINGS: ToWordSettings = {
 	enablePreprocessing: false
 }
 
+const EXPORT_ICON = 'file-output';
+
 export default class ToWordPlugin extends Plugin {
 	settings: ToWordSettings;
 	converter: MarkdownToDocxConverter;
@@ -39,7 +41,7 @@ export default class ToWordPlugin extends Plugin {
 		this.converter = new MarkdownToDocxConverter(this.settings);
 
 		// Add ribbon icon
-		this.addRibbonIcon('file-output', 'Export to Word', async (evt: MouseEvent) => {
+		this.addRibbonIcon(EXPORT_ICON, 'Export to Word', async (evt: MouseEvent) => {
 			const activeFile = this.app.workspace.getActiveFile();
 			if (activeFile) {
 				await this.exportToWord(activeFile);
@@ -52,6 +54,7 @@ export default class ToWordPlugin extends Plugin {
 		this.addCommand({
 			id: 'export-current-file',
 			name: 'Export current file to Word',
+			icon: EXPORT_ICON,
 			checkCallback: (checking: boolean) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (activeFile) {
@@ -71,7 +74,7 @@ export default class ToWordPlugin extends Plugin {
 					menu.addItem((item) => {
 						item
 							.setTitle('Export to Word')
-							.setIcon('file-output')
+							.setIcon(EXPORT_ICON)
 							.onClick(async () => {
 								await this.exportToWord(file);
 							});
@@ -331,6 +334,10 @@ class ToWordSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		this.renderSettings();
+	}
+
+	private renderSettings(): void {
 		const {containerEl} = this;
 
 		containerEl.empty();
@@ -411,7 +418,7 @@ class ToWordSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.outputLocation = value as 'same-folder' | 'vault-root' | 'custom-folder';
 					await this.plugin.saveSettings();
-					this.display(); // Refresh to show/hide custom folder setting
+					this.renderSettings();
 				}));
 
 		if (this.plugin.settings.outputLocation === 'custom-folder') {
