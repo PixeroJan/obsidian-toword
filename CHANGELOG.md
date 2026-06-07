@@ -2,13 +2,23 @@
 
 All notable changes to the ToWord plugin will be documented in this file.
 
+## [1.4.6] - 2026-06-07
+
+### Fixed
+- Removed unexpected `await` warnings around synchronous DOCX generation.
+- Isolated `fflate` ZIP output typing behind a typed helper to clear unsafe assignment, unsafe argument, and unresolved member access warnings.
+- Fixed remaining mobile converter lint issues for skipped footnote XML generation and horizontal rule parsing indentation.
+
+
 ## [1.4.5] - 2026-06-07
 
 ### Fixed
 - Removed the unsupported `icon` field from `manifest.json` to satisfy the Obsidian manifest schema.
 - Replaced unsafe DOCX XML byte encoding with native `TextEncoder`.
 - Switched DOCX ZIP generation to typed `zipSync` output and normalized the ZIP bytes for Blob creation.
+- Removed stale `await` usage around synchronous DOCX generation.
 - Avoided the deprecated settings tab `display()` self-call by refreshing settings through an internal render helper.
+- Fixed remaining lint issues in the mobile converter.
 
 ### Changed
 - Centralized the export icon name in code and applied it to the ribbon button, command palette command, and file context menu item.

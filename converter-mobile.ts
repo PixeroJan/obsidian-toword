@@ -205,7 +205,7 @@ export class MarkdownToDocxConverter {
 			}
 		}
 
-		const docxBlob = await this.generateDocx(allElements, title);
+		const docxBlob = this.generateDocx(allElements, title);
 
 		this.resourceLoader = undefined;
 		return docxBlob;
@@ -532,7 +532,7 @@ export class MarkdownToDocxConverter {
 		}
 
 		// Generate DOCX
-		const docxBlob = await this.generateDocx(elements, title);
+		const docxBlob = this.generateDocx(elements, title);
 
 		this.resourceLoader = undefined;
 		return docxBlob;
@@ -561,13 +561,17 @@ export class MarkdownToDocxConverter {
 		});
 
 		// Create ZIP using fflate
-		const data = zipSync(files, { level: 6 });
+		const data = this.createZip(files);
 		const buffer = new ArrayBuffer(data.byteLength);
 		new Uint8Array(buffer).set(data);
 
 		return new Blob([buffer], {
 			type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 		});
+	}
+
+	private createZip(files: Record<string, Uint8Array>): Uint8Array {
+		return zipSync(files, { level: 6 }) as unknown as Uint8Array;
 	}
 
 	private getContentTypesXml(): string {
@@ -797,7 +801,7 @@ ${imageRels}</Relationships>`;
 		}
 
 		// Skip footnote XML generation - let the document handle its own footnotes
-		let footnotesXml = '';
+		const footnotesXml = '';
 		/*
 		// Add footnotes at the end of the document
 		if (this.usedFootnotes.length > 0) {
@@ -1784,8 +1788,8 @@ ${imageRels}</Relationships>`;
 
 			// Handle horizontal rules - be more permissive with the patterns
 			const cleanLine = trimmedLine.replace(/\s/g, '');
-			if ((cleanLine.match(/^-{3,}$/) || cleanLine.match(/^\*{3,}$/) || cleanLine.match(/^_{3,}$/)) && 
-			    trimmedLine.length >= 3) {
+			if ((cleanLine.match(/^-{3,}$/) || cleanLine.match(/^\*{3,}$/) || cleanLine.match(/^_{3,}$/)) &&
+				trimmedLine.length >= 3) {
 				elements.push({ type: 'horizontal-rule' });
 				i++;
 				continue;
