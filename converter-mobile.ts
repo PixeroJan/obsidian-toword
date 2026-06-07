@@ -404,7 +404,7 @@ export class MarkdownToDocxConverter {
 				// If next line doesn't look like a separator, add one
 				if (nextLine && !nextLine.match(/^\s*\|[\s\-:]*\|/)) {
 					// Count columns in header
-					const columns = line.split('|').length - 2; // -2 for leading/trailing empty parts
+					const columns = this.splitMarkdownTableRow(line).length;
 					if (columns > 0) {
 						// Create separator row
 						const separator = '|' + ' --- |'.repeat(columns);
@@ -415,6 +415,48 @@ export class MarkdownToDocxConverter {
 		}
 		
 		return result.join('\n');
+	}
+
+	private splitMarkdownTableRow(line: string): string[] {
+		let trimmedLine = line.trim();
+		if (trimmedLine.startsWith('|')) {
+			trimmedLine = trimmedLine.slice(1);
+		}
+		if (trimmedLine.endsWith('|')) {
+			trimmedLine = trimmedLine.slice(0, -1);
+		}
+
+		const cells: string[] = [];
+		let currentCell = '';
+		let inCodeSpan = false;
+
+		for (let index = 0; index < trimmedLine.length; index++) {
+			const char = trimmedLine[index];
+			const nextChar = trimmedLine[index + 1];
+
+			if (char === '\\' && nextChar === '|') {
+				currentCell += '|';
+				index++;
+				continue;
+			}
+
+			if (char === '`') {
+				inCodeSpan = !inCodeSpan;
+				currentCell += char;
+				continue;
+			}
+
+			if (char === '|' && !inCodeSpan) {
+				cells.push(currentCell.trim());
+				currentCell = '';
+				continue;
+			}
+
+			currentCell += char;
+		}
+
+		cells.push(currentCell.trim());
+		return cells;
 	}
 
 	// Public method to force chunked processing regardless of size
@@ -1596,32 +1638,31 @@ ${imageRels}</Relationships>`;
 		// Handle nested formatting by processing inner markers first
 		
 		// Process CODE first (no nesting allowed)
-		result = result.replace(/\|\|\|CODE\|\|\|([^|]*?)\|\|\|\/CODE\|\|\|/g, 
-			'<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/><w:b/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
+		result = result.replace(/\|\|\|CODE\|\|\|([\s\S]*?)\|\|\|\/CODE\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/><w:b/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
 		
 		// Process BOLDITALIC first (combination of both)
-		result = result.replace(/\|\|\|BOLDITALIC\|\|\|([^|]*?)\|\|\|\/BOLDITALIC\|\|\|/g, 
-			'<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
+		result = result.replace(/\|\|\|BOLDITALIC\|\|\|([\s\S]*?)\|\|\|\/BOLDITALIC\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
 		
 		// Process other formatting
-		result = result.replace(/\|\|\|SUPER\|\|\|([^|]*?)\|\|\|\/SUPER\|\|\|/g, 
-			'<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
-		result = result.replace(/\|\|\|SUB\|\|\|([^|]*?)\|\|\|\/SUB\|\|\|/g, 
-			'<w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
-		result = result.replace(/\|\|\|STRIKE\|\|\|([^|]*?)\|\|\|\/STRIKE\|\|\|/g, 
-			'<w:r><w:rPr><w:strike/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
-		result = result.replace(/\|\|\|HIGHLIGHT\|\|\|([^|]*?)\|\|\|\/HIGHLIGHT\|\|\|/g, 
-			'<w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
-		result = result.replace(/\|\|\|UNDERLINE\|\|\|([^|]*?)\|\|\|\/UNDERLINE\|\|\|/g, 
-			'<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
+		result = result.replace(/\|\|\|SUPER\|\|\|([\s\S]*?)\|\|\|\/SUPER\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
+		result = result.replace(/\|\|\|SUB\|\|\|([\s\S]*?)\|\|\|\/SUB\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:vertAlign w:val="subscript"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
+		result = result.replace(/\|\|\|STRIKE\|\|\|([\s\S]*?)\|\|\|\/STRIKE\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:strike/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
+		result = result.replace(/\|\|\|HIGHLIGHT\|\|\|([\s\S]*?)\|\|\|\/HIGHLIGHT\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
+		result = result.replace(/\|\|\|UNDERLINE\|\|\|([\s\S]*?)\|\|\|\/UNDERLINE\|\|\|/g, (_match: string, content: string) =>
+			`<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
 		
 		// Process nested ITALIC and BOLD with proper support
-		result = result.replace(/\|\|\|ITALIC\|\|\|(.*?)\|\|\|\/ITALIC\|\|\|/g, (_match: string, content: string) => {
+		result = result.replace(/\|\|\|ITALIC\|\|\|([\s\S]*?)\|\|\|\/ITALIC\|\|\|/g, (_match: string, content: string) => {
 			// Check if content has nested tags
 			if (content.includes('<BOLD>')) {
 				// Convert nested bold tags to proper Word XML with both italic and bold
-				return content.replace(/<BOLD>([^<]+?)<\/BOLD>/g, 
-					'<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
+				return this.convertNestedTemporaryTagsToWordXml(content, { italic: true });
 			} else {
 				// Simple italic
 				const escapedContent = this.escapeXml(content);
@@ -1629,12 +1670,11 @@ ${imageRels}</Relationships>`;
 			}
 		});
 		
-		result = result.replace(/\|\|\|BOLD\|\|\|(.*?)\|\|\|\/BOLD\|\|\|/g, (_match: string, content: string) => {
+		result = result.replace(/\|\|\|BOLD\|\|\|([\s\S]*?)\|\|\|\/BOLD\|\|\|/g, (_match: string, content: string) => {
 			// Check if content has nested tags
 			if (content.includes('<ITALIC>')) {
 				// Convert nested italic tags to proper Word XML with both bold and italic
-				return content.replace(/<ITALIC>([^<]+?)<\/ITALIC>/g, 
-					'<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r>');
+				return this.convertNestedTemporaryTagsToWordXml(content, { bold: true });
 			} else {
 				// Simple bold
 				const escapedContent = this.escapeXml(content);
@@ -1643,8 +1683,8 @@ ${imageRels}</Relationships>`;
 		});
 		
 		// Process links
-		result = result.replace(/\|\|\|LINK\|\|\|([^|]*?)\|\|\|DATA:([^|]*?)\|\|\|\/LINK\|\|\|/g, 
-			'<w:hyperlink><w:r><w:rPr><w:color w:val="0000FF"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">$1</w:t></w:r></w:hyperlink>');
+		result = result.replace(/\|\|\|LINK\|\|\|([\s\S]*?)\|\|\|DATA:([\s\S]*?)\|\|\|\/LINK\|\|\|/g, (_match: string, content: string) =>
+			`<w:hyperlink><w:r><w:rPr><w:color w:val="0000FF"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r></w:hyperlink>`);
 		
 		// Handle any remaining plain text
 		const parts = result.split(/(<w:r>.*?<\/w:r>|<w:hyperlink>.*?<\/w:hyperlink>)/);
@@ -1652,7 +1692,7 @@ ${imageRels}</Relationships>`;
 
 		for (const part of parts) {
 			if (part && !part.startsWith('<w:r>') && !part.startsWith('<w:hyperlink>')) {
-				if (part.trim()) {
+				if (part.length > 0) {
 					const escapedText = this.escapeXml(part);
 					finalResult += `<w:r><w:t xml:space="preserve">${escapedText}</w:t></w:r>`;
 				}
@@ -1662,6 +1702,44 @@ ${imageRels}</Relationships>`;
 		}
 
 		return finalResult || `<w:r><w:t xml:space="preserve">${this.escapeXml(text)}</w:t></w:r>`;
+	}
+
+	private convertNestedTemporaryTagsToWordXml(content: string, baseStyle: TextStyle): string {
+		const tagRegex = /<(BOLD|ITALIC)>([\s\S]*?)<\/\1>/g;
+		let result = '';
+		let lastIndex = 0;
+		let match: RegExpExecArray | null;
+
+		while ((match = tagRegex.exec(content)) !== null) {
+			if (match.index > lastIndex) {
+				result += this.createTextRun(content.slice(lastIndex, match.index), baseStyle);
+			}
+
+			const nestedStyle = {
+				...baseStyle,
+				bold: baseStyle.bold || match[1] === 'BOLD',
+				italic: baseStyle.italic || match[1] === 'ITALIC'
+			};
+			result += this.createTextRun(match[2], nestedStyle);
+			lastIndex = tagRegex.lastIndex;
+		}
+
+		if (lastIndex < content.length) {
+			result += this.createTextRun(content.slice(lastIndex), baseStyle);
+		}
+
+		return result;
+	}
+
+	private createTextRun(content: string, style: TextStyle = {}): string {
+		if (!content) return '';
+
+		let runProperties = '';
+		if (style.bold) runProperties += '<w:b/>';
+		if (style.italic) runProperties += '<w:i/>';
+
+		const propertiesXml = runProperties ? `<w:rPr>${runProperties}</w:rPr>` : '';
+		return `<w:r>${propertiesXml}<w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`;
 	}
 
 	private async parseMarkdownToElements(markdown: string): Promise<DocumentElement[]> {
@@ -1824,7 +1902,7 @@ ${imageRels}</Relationships>`;
 					tableAlignments = [];
 				}
 
-				const cells = line.split('|').slice(1, -1).map(cell => cell.trim());
+				const cells = this.splitMarkdownTableRow(line);
 				
 				// Check if this is the alignment row
 				if (cells.every(cell => /^:?-+:?$/.test(cell))) {

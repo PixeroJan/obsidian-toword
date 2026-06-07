@@ -2,6 +2,13 @@
 
 All notable changes to the ToWord plugin will be documented in this file.
 
+## [1.4.4] - 2026-06-07
+
+### Fixed
+- Fixed bold and italic export leaking internal placeholder markers like `|||ITALIC|||` into Word documents.
+- Fixed DOCX corruption when table cells contain inline code with HTML-like content, such as `<span>` tags.
+- Improved Markdown table parsing so pipes inside inline code spans or escaped pipes do not split cells incorrectly.
+
 ## [1.4.3] - 2026-05-14
 
 ### 🧹 Code Quality & Compliance
