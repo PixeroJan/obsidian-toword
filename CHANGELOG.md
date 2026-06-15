@@ -2,6 +2,19 @@
 
 All notable changes to the ToWord plugin will be documented in this file.
 
+## [1.4.7] - 2026-06-15
+
+### Fixed
+- Fixed single dollar signs (e.g. `$20`) being incorrectly wrapped in an extra `$` when markdown preprocessing is enabled (#7).
+- Fixed bold and italic formatting markers (`|||ITALIC|||`, `|||BOLD|||`) leaking into exported Word documents (#5).
+- Fixed cross-nested bold/italic patterns (e.g. `*bold** words in **one*`) producing broken markers in the output.
+- Fixed bold/italic wrapping around already-converted Word XML runs (e.g. code inside bold/italic).
+- Added safety cleanup to strip any remaining unconverted markers so they never appear as literal text.
+
+### Changed
+- Math notation (`$...$` and `$$...$$`) is now always converted to readable Unicode text, regardless of the preprocessing toggle.
+- LaTeX math expressions are converted to readable plain text with Unicode symbols (e.g. `$E = mc^2$` → `E = mc²`, Greek letters, integrals, fractions, etc.).
+
 ## [1.4.6] - 2026-06-07
 
 ### Fixed

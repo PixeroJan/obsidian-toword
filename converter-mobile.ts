@@ -224,7 +224,16 @@ export class MarkdownToDocxConverter {
 		}
 
 		// Pre-process markdown to fix common issues (if enabled)
-		const cleanedMarkdown = this.settings.enablePreprocessing ? this.preprocessMarkdown(processedMarkdown) : processedMarkdown;
+		let cleanedMarkdown = processedMarkdown;
+		
+		// Always convert math notation (paired $...$ and $$...$$) to plain text
+		// This must run regardless of the preprocessing toggle so that math
+		// expressions don't interfere with bold/italic parsing.
+		cleanedMarkdown = this.convertMathNotation(cleanedMarkdown);
+		
+		if (this.settings.enablePreprocessing) {
+			cleanedMarkdown = this.preprocessMarkdown(cleanedMarkdown);
+		}
 		
 		// Check if we should use chunked processing for large documents
 		const threshold = this.settings.chunkingThreshold || 100000; // Fallback to 100KB
@@ -238,6 +247,148 @@ export class MarkdownToDocxConverter {
 	}
 
 	// Strip YAML frontmatter from markdown content
+	// Convert paired math notation to readable plain text.
+	// This always runs (even when preprocessing is disabled) so that
+	// $...$ and $$...$$ expressions don't interfere with bold/italic parsing.
+	private convertMathNotation(markdown: string): string {
+		let cleaned = markdown;
+		// Block math $$...$$
+		cleaned = cleaned.replace(/\$\$([^$]+?)\$\$/g, (_match: string, math: string) => {
+			const readable = this.latexToReadableText(math.trim());
+			return `\n\n${readable}\n\n`;
+		});
+		// Inline math $...$
+		cleaned = cleaned.replace(/\$([^$\n]+?)\$/g, (_match: string, math: string) => {
+			const readable = this.latexToReadableText(math.trim());
+			return readable;
+		});
+		return cleaned;
+	}
+
+	// Convert common LaTeX notation to readable plain text
+	private latexToReadableText(latex: string): string {
+		let text = latex;
+		// Greek letters
+		text = text.replace(/\\alpha\b/g, 'α');
+		text = text.replace(/\\beta\b/g, 'β');
+		text = text.replace(/\\gamma\b/g, 'γ');
+		text = text.replace(/\\delta\b/g, 'δ');
+		text = text.replace(/\\epsilon\b/g, 'ε');
+		text = text.replace(/\\zeta\b/g, 'ζ');
+		text = text.replace(/\\eta\b/g, 'η');
+		text = text.replace(/\\theta\b/g, 'θ');
+		text = text.replace(/\\iota\b/g, 'ι');
+		text = text.replace(/\\kappa\b/g, 'κ');
+		text = text.replace(/\\lambda\b/g, 'λ');
+		text = text.replace(/\\mu\b/g, 'μ');
+		text = text.replace(/\\nu\b/g, 'ν');
+		text = text.replace(/\\xi\b/g, 'ξ');
+		text = text.replace(/\\pi\b/g, 'π');
+		text = text.replace(/\\rho\b/g, 'ρ');
+		text = text.replace(/\\sigma\b/g, 'σ');
+		text = text.replace(/\\tau\b/g, 'τ');
+		text = text.replace(/\\upsilon\b/g, 'υ');
+		text = text.replace(/\\phi\b/g, 'φ');
+		text = text.replace(/\\chi\b/g, 'χ');
+		text = text.replace(/\\psi\b/g, 'ψ');
+		text = text.replace(/\\omega\b/g, 'ω');
+		// Uppercase Greek
+		text = text.replace(/\\Gamma\b/g, 'Γ');
+		text = text.replace(/\\Delta\b/g, 'Δ');
+		text = text.replace(/\\Theta\b/g, 'Θ');
+		text = text.replace(/\\Lambda\b/g, 'Λ');
+		text = text.replace(/\\Xi\b/g, 'Ξ');
+		text = text.replace(/\\Pi\b/g, 'Π');
+		text = text.replace(/\\Sigma\b/g, 'Σ');
+		text = text.replace(/\\Phi\b/g, 'Φ');
+		text = text.replace(/\\Psi\b/g, 'Ψ');
+		text = text.replace(/\\Omega\b/g, 'Ω');
+		// Common math symbols
+		text = text.replace(/\\infty\b/g, '∞');
+		text = text.replace(/\\pm\b/g, '±');
+		text = text.replace(/\\mp\b/g, '∓');
+		text = text.replace(/\\times\b/g, '×');
+		text = text.replace(/\\div\b/g, '÷');
+		text = text.replace(/\\neq\b/g, '≠');
+		text = text.replace(/\\leq\b/g, '≤');
+		text = text.replace(/\\geq\b/g, '≥');
+		text = text.replace(/\\approx\b/g, '≈');
+		text = text.replace(/\\equiv\b/g, '≡');
+		text = text.replace(/\\sim\b/g, '∼');
+		text = text.replace(/\\propto\b/g, '∝');
+		text = text.replace(/\\partial\b/g, '∂');
+		text = text.replace(/\\nabla\b/g, '∇');
+		text = text.replace(/\\forall\b/g, '∀');
+		text = text.replace(/\\exists\b/g, '∃');
+		text = text.replace(/\\in\b/g, '∈');
+		text = text.replace(/\\notin\b/g, '∉');
+		text = text.replace(/\\subset\b/g, '⊂');
+		text = text.replace(/\\supset\b/g, '⊃');
+		text = text.replace(/\\cup\b/g, '∪');
+		text = text.replace(/\\cap\b/g, '∩');
+		text = text.replace(/\\emptyset\b/g, '∅');
+		text = text.replace(/\\rightarrow\b/g, '→');
+		text = text.replace(/\\leftarrow\b/g, '←');
+		text = text.replace(/\\Rightarrow\b/g, '⇒');
+		text = text.replace(/\\Leftarrow\b/g, '⇐');
+		text = text.replace(/\\cdot\b/g, '·');
+		text = text.replace(/\\dots\b/g, '…');
+		text = text.replace(/\\ldots\b/g, '…');
+		// Superscripts: x^{2} or x^2 → x²
+		text = text.replace(/\^{([^}]*)}/g, (_m: string, sup: string) => this.toSuperscript(sup));
+		text = text.replace(/\^(\w)/g, (_m: string, sup: string) => this.toSuperscript(sup));
+		// Subscripts: x_{i} or x_i → xᵢ
+		text = text.replace(/_{([^}]*)}/g, (_m: string, sub: string) => this.toSubscript(sub));
+		text = text.replace(/_(\w)/g, (_m: string, sub: string) => this.toSubscript(sub));
+		// Fractions: \frac{a}{b} → a/b
+		text = text.replace(/\\frac\{([^}]*)}\{([^}]*)}/g, '($1/$2)');
+		text = text.replace(/\\frac(\w)\{([^}]*)}/g, '$1/($2)');
+		text = text.replace(/\\frac\{([^}]*)}(\w)/g, '($1)/$2');
+		// Square root: \sqrt{x} → √x
+		text = text.replace(/\\sqrt\{([^}]*)}/g, '√($1)');
+		// Integrals
+		text = text.replace(/\\int\b/g, '∫');
+		text = text.replace(/\\oint\b/g, '∮');
+		// Sums and products
+		text = text.replace(/\\sum\b/g, '∑');
+		text = text.replace(/\\prod\b/g, '∏');
+		// Limits
+		text = text.replace(/\\lim\b/g, 'lim');
+		text = text.replace(/\\log\b/g, 'log');
+		text = text.replace(/\\ln\b/g, 'ln');
+		text = text.replace(/\\sin\b/g, 'sin');
+		text = text.replace(/\\cos\b/g, 'cos');
+		text = text.replace(/\\tan\b/g, 'tan');
+		// Remove remaining LaTeX commands that have no plain-text equivalent
+		text = text.replace(/\\[a-zA-Z]+/g, '');
+		// Clean up braces
+		text = text.replace(/[{}]/g, '');
+		// Clean up multiple spaces
+		text = text.replace(/\s+/g, ' ').trim();
+		return text;
+	}
+
+	private toSuperscript(text: string): string {
+		const superscriptMap: Record<string, string> = {
+			'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+			'5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+			'+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+			'n': 'ⁿ', 'i': 'ⁱ'
+		};
+		return text.split('').map(c => superscriptMap[c] || c).join('');
+	}
+
+	private toSubscript(text: string): string {
+		const subscriptMap: Record<string, string> = {
+			'0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+			'5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+			'+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+			'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ',
+			'i': 'ᵢ', 'j': 'ⱼ', 'n': 'ₙ', 'r': 'ᵣ', 'u': 'ᵤ', 'v': 'ᵥ'
+		};
+		return text.split('').map(c => subscriptMap[c] || c).join('');
+	}
+
 	private stripFrontmatter(markdown: string): string {
 		if (!markdown.startsWith('---')) {
 			return markdown;
@@ -311,16 +462,8 @@ export class MarkdownToDocxConverter {
 			return url ? `[${text}](${url})` : match;
 		});
 		
-		// 6. Convert math notation to plain text (temporary solution)
-		// Block math $$...$$
-		cleaned = cleaned.replace(/\$\$([^$]+?)\$\$/g, (_match: string, math: string) => {
-			return `\n\n**[Math Formula]**: ${math.trim()}\n\n`;
-		});
-		
-		// Inline math $...$
-		cleaned = cleaned.replace(/\$([^$\n]+?)\$/g, (_match: string, math: string) => {
-			return `**[Math]**: ${math.trim()}`;
-		});
+		// 6. Math notation conversion is handled separately in convertMathNotation()
+		// which always runs regardless of the preprocessing toggle.
 		
 		// 7. Convert auto-links and email links
 		cleaned = cleaned.replace(/<(https?:\/\/[^>\s]+)>/g, '[$1]($1)');
@@ -378,12 +521,12 @@ export class MarkdownToDocxConverter {
 		// 7. Fix malformed tables - ensure header separator row exists
 		cleaned = this.fixMalformedTables(cleaned);
 
-		// 8. Clean up math notation - ensure proper fencing
-		cleaned = cleaned
-			// Fix unclosed inline math
-			.replace(/\$([^$\n]+)(?!\$)/g, '$$$1$$')
-			// Fix unclosed block math - use multiline approach without 's' flag
-			.replace(/\$\$([^$]+?)(?!\$\$)/g, '$$$$1$$$$');
+		// 8. Clean up math notation
+		// Removed: the previous "fix unclosed inline/block math" regexes were too
+		// aggressive – they matched lone $ signs used for currency (e.g. $20)
+		// and wrapped them in an extra $, producing literal "$20$" in the output.
+		// Only properly paired $...$ and $$...$$ are converted above; unpaired
+		// dollar signs are left untouched so they appear as-is in the document.
 
 		return cleaned;
 	}
@@ -1567,22 +1710,7 @@ ${imageRels}</Relationships>`;
 		result = result.replace(/\*\*\*([^*\n]+?)\*\*\*/g, '|||BOLDITALIC|||$1|||/BOLDITALIC|||');
 		result = result.replace(/___([^_\n]+?)___/g, '|||BOLDITALIC|||$1|||/BOLDITALIC|||');
 		
-		// 3. Handle nested patterns with detailed processing
-		// Bold with italic inside: **text *italic* text**
-		result = result.replace(/\*\*([^*]*?\*[^*]+?\*[^*]*?)\*\*/g, (_match: string, content: string) => {
-			// Process italic inside bold
-			const processed = content.replace(/\*([^*]+?)\*/g, '<ITALIC>$1</ITALIC>');
-			return `|||BOLD|||${processed}|||/BOLD|||`;
-		});
-		
-		// Italic with bold inside: *text **bold** text*
-		result = result.replace(/\*([^*]*?\*\*[^*]+?\*\*[^*]*?)\*/g, (_match: string, content: string) => {
-			// Process bold inside italic
-			const processed = content.replace(/\*\*([^*]+?)\*\*/g, '<BOLD>$1</BOLD>');
-			return `|||ITALIC|||${processed}|||/ITALIC|||`;
-		});
-		
-		// 4. Regular bold and italic (for non-nested cases)
+		// 3. Regular bold and italic (simple, non-nested cases first)
 		result = result.replace(/\*\*([^*\n]+?)\*\*/g, '|||BOLD|||$1|||/BOLD|||');
 		result = result.replace(/\*([^*\n]+?)\*/g, '|||ITALIC|||$1|||/ITALIC|||');
 		
@@ -1640,9 +1768,15 @@ ${imageRels}</Relationships>`;
 		result = result.replace(/\|\|\|CODE\|\|\|([\s\S]*?)\|\|\|\/CODE\|\|\|/g, (_match: string, content: string) =>
 			`<w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/><w:b/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
 		
-		// Process BOLDITALIC first (combination of both)
-		result = result.replace(/\|\|\|BOLDITALIC\|\|\|([\s\S]*?)\|\|\|\/BOLDITALIC\|\|\|/g, (_match: string, content: string) =>
-			`<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
+		// Process BOLDITALIC (combination of both)
+		result = result.replace(/\|\|\|BOLDITALIC\|\|\|([\s\S]*?)\|\|\|\/BOLDITALIC\|\|\|/g, (_match: string, content: string) => {
+			// Check if content already contains Word XML runs (from previously converted markers like CODE)
+			if (content.includes('<w:r>')) {
+				return this.wrapExistingRunsWithStyle(content, { bold: true, italic: true });
+			}
+			const escapedContent = this.escapeXml(content);
+			return `<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${escapedContent}</w:t></w:r>`;
+		});
 		
 		// Process other formatting
 		result = result.replace(/\|\|\|SUPER\|\|\|([\s\S]*?)\|\|\|\/SUPER\|\|\|/g, (_match: string, content: string) =>
@@ -1657,34 +1791,54 @@ ${imageRels}</Relationships>`;
 			`<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`);
 		
 		// Process nested ITALIC and BOLD with proper support
+		// First pass: handle ITALIC markers that contain BOLD markers (from **text *italic* text**)
 		result = result.replace(/\|\|\|ITALIC\|\|\|([\s\S]*?)\|\|\|\/ITALIC\|\|\|/g, (_match: string, content: string) => {
-			// Check if content has nested tags
-			if (content.includes('<BOLD>')) {
-				// Convert nested bold tags to proper Word XML with both italic and bold
-				return this.convertNestedTemporaryTagsToWordXml(content, { italic: true });
-			} else {
-				// Simple italic
-				const escapedContent = this.escapeXml(content);
-				return `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escapedContent}</w:t></w:r>`;
+			// Check if content has nested BOLD markers (e.g. **bold** inside *italic*)
+			if (content.includes('|||BOLD|||')) {
+				return this.convertNestedMarkersToWordXml(content, { italic: true }, 'BOLD');
 			}
+			// Check if content has nested <BOLD> tags (from nested bold-inside-italic)
+			if (content.includes('<BOLD>')) {
+				return this.convertNestedTemporaryTagsToWordXml(content, { italic: true });
+			}
+			// Check if content already contains Word XML runs (from previously converted markers like CODE)
+			if (content.includes('<w:r>')) {
+				return this.wrapExistingRunsWithStyle(content, { italic: true });
+			}
+			// Simple italic
+			const escapedContent = this.escapeXml(content);
+			return `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escapedContent}</w:t></w:r>`;
 		});
 		
+		// Second pass: handle BOLD markers that contain ITALIC markers (from *text **bold** text*)
 		result = result.replace(/\|\|\|BOLD\|\|\|([\s\S]*?)\|\|\|\/BOLD\|\|\|/g, (_match: string, content: string) => {
-			// Check if content has nested tags
-			if (content.includes('<ITALIC>')) {
-				// Convert nested italic tags to proper Word XML with both bold and italic
-				return this.convertNestedTemporaryTagsToWordXml(content, { bold: true });
-			} else {
-				// Simple bold
-				const escapedContent = this.escapeXml(content);
-				return `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapedContent}</w:t></w:r>`;
+			// Check if content has nested ITALIC markers (e.g. *italic* inside **bold**)
+			if (content.includes('|||ITALIC|||')) {
+				return this.convertNestedMarkersToWordXml(content, { bold: true }, 'ITALIC');
 			}
+			// Check if content has nested <ITALIC> tags (from nested italic-inside-bold)
+			if (content.includes('<ITALIC>')) {
+				return this.convertNestedTemporaryTagsToWordXml(content, { bold: true });
+			}
+			// Check if content already contains Word XML runs (from previously converted markers like CODE)
+			if (content.includes('<w:r>')) {
+				return this.wrapExistingRunsWithStyle(content, { bold: true });
+			}
+			// Simple bold
+			const escapedContent = this.escapeXml(content);
+			return `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapedContent}</w:t></w:r>`;
 		});
 		
 		// Process links
 		result = result.replace(/\|\|\|LINK\|\|\|([\s\S]*?)\|\|\|DATA:([\s\S]*?)\|\|\|\/LINK\|\|\|/g, (_match: string, content: string) =>
 			`<w:hyperlink><w:r><w:rPr><w:color w:val="0000FF"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r></w:hyperlink>`);
 		
+		// Safety cleanup: strip any remaining |||...||| markers that weren't converted
+		// (prevents literal marker text from appearing in the Word document)
+		result = result.replace(/\|\|\|\/?(?:BOLD|ITALIC|BOLDITALIC|STRIKE|HIGHLIGHT|CODE|UNDERLINE|SUPER|SUB|LINK)(?:\|\|\|DATA:[^|]*\|\|\|)?/g, '');
+		// Also clean up any remaining <BOLD>, <ITALIC>, </BOLD>, </ITALIC> tags
+		result = result.replace(/<\/?(?:BOLD|ITALIC)>/g, '');
+
 		// Handle any remaining plain text
 		const parts = result.split(/(<w:r>.*?<\/w:r>|<w:hyperlink>.*?<\/w:hyperlink>)/);
 		let finalResult = '';
@@ -1739,6 +1893,83 @@ ${imageRels}</Relationships>`;
 
 		const propertiesXml = runProperties ? `<w:rPr>${runProperties}</w:rPr>` : '';
 		return `<w:r>${propertiesXml}<w:t xml:space="preserve">${this.escapeXml(content)}</w:t></w:r>`;
+	}
+
+	/**
+	 * Wrap content that already contains <w:r> Word XML runs with an additional
+	 * text style (bold/italic). Plain-text segments between runs are also wrapped.
+	 * This handles cases where a CODE or other marker was converted before the
+	 * enclosing BOLD/ITALIC marker is processed.
+	 */
+	private wrapExistingRunsWithStyle(content: string, style: TextStyle): string {
+		const parts = content.split(/(<w:r>.*?<\/w:r>)/);
+		let result = '';
+
+		for (const part of parts) {
+			if (part.startsWith('<w:r>')) {
+				// Inject the style properties into the existing run's <w:rPr>
+				const styleProps = (style.bold ? '<w:b/>' : '') + (style.italic ? '<w:i/>' : '');
+				if (part.includes('<w:rPr>')) {
+					// Already has run properties – prepend our style
+					result += part.replace('<w:rPr>', `<w:rPr>${styleProps}`);
+				} else {
+					// No run properties – add them
+					result += part.replace('<w:r>', `<w:r><w:rPr>${styleProps}</w:rPr>`);
+				}
+			} else if (part.length > 0) {
+				// Plain text segment – create a new styled run
+				result += this.createTextRun(part, style);
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Handle nested |||BOLD|||/|||ITALIC||| markers inside an outer marker.
+	 * For example: |||BOLD|||text |||ITALIC|||inner|||/ITALIC||| rest|||/BOLD|||
+	 * The inner markers are converted to Word XML with the outer style combined.
+	 */
+	private convertNestedMarkersToWordXml(content: string, baseStyle: TextStyle, innerMarkerType: 'BOLD' | 'ITALIC'): string {
+		const innerOpen = `|||${innerMarkerType}|||`;
+		const innerClose = `|||/${innerMarkerType}|||`;
+		const innerStyle: TextStyle = {
+			bold: baseStyle.bold || innerMarkerType === 'BOLD',
+			italic: baseStyle.italic || innerMarkerType === 'ITALIC'
+		};
+
+		let result = '';
+		let lastIndex = 0;
+		let searchFrom = 0;
+
+		while (searchFrom < content.length) {
+			const openPos = content.indexOf(innerOpen, searchFrom);
+			if (openPos === -1) break;
+
+			// Add text before the inner marker with the base style
+			if (openPos > lastIndex) {
+				const beforeText = content.slice(lastIndex, openPos);
+				result += this.createTextRun(beforeText, baseStyle);
+			}
+
+			// Find the closing marker
+			const closePos = content.indexOf(innerClose, openPos + innerOpen.length);
+			if (closePos === -1) break;
+
+			// Add the inner content with combined style
+			const innerContent = content.slice(openPos + innerOpen.length, closePos);
+			result += this.createTextRun(innerContent, innerStyle);
+
+			lastIndex = closePos + innerClose.length;
+			searchFrom = lastIndex;
+		}
+
+		// Add remaining text with the base style
+		if (lastIndex < content.length) {
+			result += this.createTextRun(content.slice(lastIndex), baseStyle);
+		}
+
+		return result;
 	}
 
 	private async parseMarkdownToElements(markdown: string): Promise<DocumentElement[]> {
